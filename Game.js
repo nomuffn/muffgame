@@ -77,6 +77,7 @@ class Game {
         const ball = Bodies.circle(x, y, size, {
             restitution: 0.5,
             label: 'ball',
+            size,
             isStatic,
             render: {
                 // fillStyle: '#e64980',
@@ -133,9 +134,16 @@ class Game {
         }
     }
 
-    addScore(radius) {
-        const score = this.sizes.find((item) => item.size == radius).score
-        this.score += score
+    addScore() {
+        const balls = Composite.allBodies(this.engine.world).filter((item) => item.label == 'ball')
+
+        let score = 0
+        for (const ball of balls) {
+            console.log(this.sizes.find((item) => item.size == ball.size))
+            score += this.sizes.find((item) => item.size == ball.size).score
+        }
+
+        this.score = score
         scoreText.innerText = this.score
     }
     endGame() {
@@ -245,7 +253,6 @@ class Game {
                 const death = bodyA.label == 'death' || bodyB.label == 'death'
 
                 if (death && ball) {
-                    console.log(ball.id, ball)
                     if (!(ball.id in this.deathTimes)) {
                         this.deathTimes[ball.id] = this.engine.timing.timestamp
                     } else {
@@ -271,7 +278,6 @@ class Game {
                 const ball = animate.body
                 const towards = animate.towards
 
-                console.log(animate)
                 if (ball.circleRadius < radiusLimit) {
                     const midpointX = (ball.position.x + towards.position.x) / 2
                     const midpointY = (ball.position.y + towards.position.y) / 2
