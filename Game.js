@@ -19,11 +19,16 @@ const {
 } = Matter
 
 const scoreText = document.getElementById('game-score')
+const globals = {
+    width: 500,
+    height: 800,
+}
 
 class Game {
     score = 0
 
     toAnimate = {} // balls that need to be animated; key is id of object
+    deathTimes = {}
 
     defaultCategory = 0x0001
     mouseCategory = 0x0002
@@ -85,9 +90,9 @@ class Game {
                 If the two bodies have the same non-zero value of collisionFilter.group, they will always collide if the value is positive, and they will never collide if the value is negative.
                 Using the category/mask rules, two bodies A and B collide if each includes the other's category in its mask, i.e. (categoryA & maskB) !== 0 and (categoryB & maskA) !== 0 are both true.
             */
-            // collisionFilter: {
-            //     category: this.mouseCategory,
-            // },
+            collisionFilter: {
+                category: this.defaultCategory,
+            },
         })
 
         Body.setVelocity(ball, {
@@ -101,10 +106,30 @@ class Game {
     }
 
     dropBall() {
+        if (
+            Composite.allBodies(this.engine.world).filter((item) => item.label == 'ball').length ==
+            0
+        ) {
+            this.score = 0
+            scoreText.innerText = this.score
+        }
+
         if (this.currentBall) {
             World.remove(this.engine.world, this.currentBall)
-            this.spawnBall(this.currentBall.position.x, 50, this.currentBall.circleRadius)
+            const ball = this.spawnBall(
+                this.currentBall.position.x,
+                50,
+                this.currentBall.circleRadius,
+            )
             this.currentBall = null
+        } else {
+            const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
+            this.currentBall = this.spawnBall(
+                globals.width / 2,
+                50,
+                this.sizes[randomIndex].size,
+                true,
+            )
         }
     }
 
@@ -112,6 +137,16 @@ class Game {
         const score = this.sizes.find((item) => item.size == radius).score
         this.score += score
         scoreText.innerText = this.score
+    }
+    endGame() {
+        scoreText.innerText = this.score + ' Loser'
+        for (const ball of Composite.allBodies(this.engine.world).filter(
+            (item) => item.label == 'ball',
+        )) {
+            console.log('remove', ball)
+            World.remove(this.engine.world, ball)
+            this.toAnimate = {}
+        }
     }
 
     constructor() {
@@ -123,8 +158,8 @@ class Game {
             element: document.body,
             engine: this.engine,
             options: {
-                width: 560,
-                height: 800,
+                width: globals.width,
+                height: globals.height,
                 wireframes: false,
                 background: '#212121',
             },
@@ -156,26 +191,19 @@ class Game {
             } else if (bodiesAtMouse.length == 0) {
                 // too slow with: if (mouseConstraint.body === null) {
                 // random index in this.sizes
-                const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
-                this.currentBall = this.spawnBall(
-                    event.mouse.position.x,
-                    50,
-                    this.sizes[randomIndex].size,
-                    true,
-                )
             }
         })
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            console.log(render.options)
             if (
                 this.currentBall &&
-                event.mouse.position.x > 100 &&
-                event.mouse.position.x < render.options.width - 100
+                event.mouse.position.x > 10 + this.currentBall.circleRadius &&
+                event.mouse.position.x < render.options.width - this.currentBall.circleRadius - 10
             ) {
                 this.currentBall.position.x = event.mouse.position.x
             }
         })
 
+        this.dropBall()
         Events.on(mouseConstraint, 'mouseup', (event) => {
             this.dropBall()
         })
@@ -209,8 +237,27 @@ class Game {
             }
         })
 
-        var lastTime = 0,
-            scaleRate = 5,
+        Events.on(this.engine, 'collisionActive', (e) => {
+            for (let i = 0; i < e.pairs.length; i++) {
+                const { bodyA, bodyB } = e.pairs[i]
+
+                const ball = bodyA.label == 'ball' ? bodyA : bodyB.label == 'ball' ? bodyB : null
+                const death = bodyA.label == 'death' || bodyB.label == 'death'
+
+                if (death && ball) {
+                    console.log(ball.id, ball)
+                    if (!(ball.id in this.deathTimes)) {
+                        this.deathTimes[ball.id] = this.engine.timing.timestamp
+                    } else {
+                        if (this.engine.timing.timestamp - this.deathTimes[ball.id] >= 5000) {
+                            this.endGame()
+                        }
+                    }
+                }
+            }
+        })
+
+        var scaleRate = 5,
             radiusLimit = 10
 
         Events.on(this.engine, 'beforeUpdate', (event) => {
@@ -287,15 +334,28 @@ class Game {
             // }
         })
 
-        const test = this.spawnBall(200, 25)
-        test.collisionFilter.category = this.defaultCategory
+        // const test = this.spawnBall(200, 25)
+        // test.collisionFilter.category = this.defaultCategory
 
         // boundary walls
         World.add(this.engine.world, [
-            this.wall(280, 0, 560, 20), // top
-            this.wall(280, 800, 560, 20), // bottom
-            this.wall(0, 400, 20, 800), // left
-            this.wall(560, 400, 20, 800), // right
+            this.wall(0, 0, globals.width * 2, 20), // top
+            this.wall(0, globals.height, globals.width * 2, 20), // bottom
+            this.wall(0, 400, 20, globals.height), // left
+            this.wall(globals.width, 400, 20, globals.height), // right
+
+            Bodies.rectangle(0, 150, globals.width * 2, 5, {
+                isStatic: true,
+                isSensor: true,
+                label: 'death',
+                render: {
+                    fillStyle: '#FF0000',
+                },
+                collisionFilter: {
+                    category: -1,
+                    mask: -1,
+                },
+            }),
         ])
 
         // divider walls
