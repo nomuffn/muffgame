@@ -1,0 +1,10 @@
+{
+    "tabWidth": 4,
+    "useTabs": false,
+    "semi": false,
+    "trailingComma": "all",
+    "printWidth": 100,
+    "singleQuote": true,
+    "braceStyle": "psr-2",
+    "phpVersion": "7.4"
+}
