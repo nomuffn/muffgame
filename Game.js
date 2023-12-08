@@ -83,12 +83,12 @@ class Game {
             label: 'ball',
             size,
             isStatic,
-            density: 0.1,
+            density: 1000,
             // inertia: inertia,
             // inverseInertia: 1 / inertia,
             friction: 1,
             frictionStatic: 0,
-            restitution: 0.2,
+            restitution: 0.3,
             slop: 0.2,
             render: {
                 // fillStyle: '#e64980',
@@ -139,7 +139,7 @@ class Game {
         if (!this.currentBall) {
             // delay a call by 1 second
             setTimeout(() => {
-                const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
+                const randomIndex = Math.floor((Math.random() * this.sizes.length) / 3)
 
                 let lastX = this.lastX || this.width
                 const size = this.sizes[randomIndex].size
@@ -195,6 +195,9 @@ class Game {
         // runner
         let runner = Runner.create()
         Runner.run(runner, this.engine)
+
+        console.log(this.engine.gravity)
+        this.engine.gravity.scale = 0.0015
 
         // mouse constraint
         let mouseConstraint = MouseConstraint.create(this.engine, {
@@ -275,13 +278,10 @@ class Game {
                 const death = bodyA.label == 'death' || bodyB.label == 'death'
 
                 if (death && ball) {
-                    if (!(ball.id in this.deathTimes)) {
-                        this.deathTimes[ball.id] = this.engine.timing.timestamp
-                    } else {
-                        if (this.engine.timing.timestamp - this.deathTimes[ball.id] >= 5000) {
-                            this.endGame()
-                        }
-                    }
+                    if (ball.id in this.deathTimes) this.deathTimes[ball.id]++
+                    else this.deathTimes[ball.id] = 0
+
+                    if (this.deathTimes[ball.id] >= 500) this.endGame()
                 }
             }
         })
