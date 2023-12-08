@@ -20,7 +20,7 @@ const {
 
 const scoreText = document.getElementById('game-score')
 const globals = {
-    width: 1000,
+    width: 500,
     height: 800,
 }
 
@@ -33,7 +33,10 @@ class Game {
     defaultCategory = 0x0001
     mouseCategory = 0x0002
 
-    gameWidth = globals.width / 2
+    width = globals.width
+    height = globals.height
+    leftLimit = 10 // half of wall width
+    rightLimit = this.width - 10
 
     sizes = [
         { size: 25, score: 1 },
@@ -138,14 +141,13 @@ class Game {
             setTimeout(() => {
                 const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
 
-                let lastX = this.lastX || this.gameWidth
+                let lastX = this.lastX || this.width
                 const size = this.sizes[randomIndex].size
 
-                if (lastX < this.gameWidth / 2 + 10 + size) lastX = this.gameWidth / 2 + 10 + size
-                if (lastX > this.gameWidth * 1.5 - size - 10)
-                    lastX = this.gameWidth * 1.5 - size - 10
+                if (lastX < this.leftLimit + size) lastX = this.leftLimit + size
+                if (lastX > this.rightLimit - size) lastX = this.rightLimit - size
 
-                this.currentBall = this.spawnBall(lastX || this.gameWidth / 2, 50, size, true)
+                this.currentBall = this.spawnBall(lastX || this.width / 2, 50, size, true)
             }, 1000)
         }
     }
@@ -203,7 +205,7 @@ class Game {
         })
         World.add(this.engine.world, mouseConstraint)
 
-        Events.on(mouseConstraint, 'mousedown', (event) => {
+        Events.on(mouseConstraint, 'mouseup', (event) => {
             const mousePosition = event.mouse.mousedownPosition
             const bodiesAtMouse = Query.point(Composite.allBodies(this.engine.world), mousePosition)
 
@@ -217,8 +219,8 @@ class Game {
         Events.on(mouseConstraint, 'mousemove', (event) => {
             if (
                 this.currentBall &&
-                event.mouse.position.x > this.gameWidth / 2 + 10 + this.currentBall.circleRadius &&
-                event.mouse.position.x < this.gameWidth * 1.5 - this.currentBall.circleRadius - 10
+                event.mouse.position.x > this.leftLimit + this.currentBall.circleRadius &&
+                event.mouse.position.x < this.rightLimit - this.currentBall.circleRadius
             ) {
                 this.currentBall.position.x = event.mouse.position.x
             }
@@ -302,7 +304,6 @@ class Game {
                     const midpointX = (ball.position.x + towards.position.x) / 2
                     const midpointY = (ball.position.y + towards.position.y) / 2
 
-                    console.log('spawn & remove', ball)
                     this.addScore(animate.radius)
                     this.spawnBall(midpointX, midpointY, this.getNextSize(animate.radius))
 
@@ -368,12 +369,12 @@ class Game {
 
         // boundary walls
         World.add(this.engine.world, [
-            this.wall(this.gameWidth, 0, this.gameWidth, 20), // top
-            this.wall(this.gameWidth, globals.height, this.gameWidth, 20), // bottom
-            this.wall(this.gameWidth / 2, globals.height / 2, 20, globals.height), // left
-            this.wall(this.gameWidth * 1.5, 400, 20, globals.height), // right
+            this.wall(this.width / 2, 0, this.width, 20), // top
+            this.wall(this.width / 2, globals.height, this.width, 20), // bottom
+            this.wall(0, globals.height / 2, 20, globals.height), // left
+            this.wall(this.width, 400, 20, globals.height), // right
 
-            Bodies.rectangle(this.gameWidth, 150, this.gameWidth - 20, 5, {
+            Bodies.rectangle(this.width / 2, 150, this.width - 20, 5, {
                 isStatic: true,
                 isSensor: true,
                 label: 'death',
