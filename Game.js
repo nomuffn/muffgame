@@ -20,7 +20,7 @@ const {
 
 const scoreText = document.getElementById('game-score')
 const globals = {
-    width: 500,
+    width: 1000,
     height: 800,
 }
 
@@ -32,6 +32,8 @@ class Game {
 
     defaultCategory = 0x0001
     mouseCategory = 0x0002
+
+    gameWidth = globals.width / 2
 
     sizes = [
         { size: 25, score: 1 },
@@ -46,8 +48,6 @@ class Game {
 
     getNextSize(size) {
         const sizeIndex = this.sizes.findIndex((item) => item.size == size)
-        console.log('getNextSize', size)
-        console.log('sizeIndex', sizeIndex)
         if (sizeIndex < 0 || sizeIndex + 1 >= this.sizes.length) return this.sizes[0].size
 
         return this.sizes[sizeIndex + 1].size
@@ -74,11 +74,19 @@ class Game {
         const sizeIndex = this.sizes.findIndex((item) => item.size == size)
         size = this.sizes[sizeIndex].size
 
+        const inertia = 1
         const ball = Bodies.circle(x, y, size, {
             restitution: 0.5,
             label: 'ball',
             size,
             isStatic,
+            density: 0.1,
+            // inertia: inertia,
+            // inverseInertia: 1 / inertia,
+            friction: 1,
+            frictionStatic: 0,
+            restitution: 0.2,
+            slop: 0.2,
             render: {
                 // fillStyle: '#e64980',
                 sprite: {
@@ -106,6 +114,7 @@ class Game {
         return ball
     }
 
+    // add small timeout
     dropBall() {
         if (
             Composite.allBodies(this.engine.world).filter((item) => item.label == 'ball').length ==
@@ -123,14 +132,21 @@ class Game {
                 this.currentBall.circleRadius,
             )
             this.currentBall = null
-        } else {
-            const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
-            this.currentBall = this.spawnBall(
-                globals.width / 2,
-                50,
-                this.sizes[randomIndex].size,
-                true,
-            )
+        }
+        if (!this.currentBall) {
+            // delay a call by 1 second
+            setTimeout(() => {
+                const randomIndex = Math.floor((Math.random() * this.sizes.length) / 2)
+
+                let lastX = this.lastX || this.gameWidth
+                const size = this.sizes[randomIndex].size
+
+                if (lastX < this.gameWidth / 2 + 10 + size) lastX = this.gameWidth / 2 + 10 + size
+                if (lastX > this.gameWidth * 1.5 - size - 10)
+                    lastX = this.gameWidth * 1.5 - size - 10
+
+                this.currentBall = this.spawnBall(lastX || this.gameWidth / 2, 50, size, true)
+            }, 1000)
         }
     }
 
@@ -139,7 +155,6 @@ class Game {
 
         let score = 0
         for (const ball of balls) {
-            console.log(this.sizes.find((item) => item.size == ball.size))
             score += this.sizes.find((item) => item.size == ball.size).score
         }
 
@@ -172,6 +187,7 @@ class Game {
                 background: '#212121',
             },
         })
+        this.render = render
         Render.run(render)
 
         // runner
@@ -188,10 +204,7 @@ class Game {
         World.add(this.engine.world, mouseConstraint)
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
-            // Handle the mouse click event here
-            console.log('Mouse clicked!', event)
             const mousePosition = event.mouse.mousedownPosition
-
             const bodiesAtMouse = Query.point(Composite.allBodies(this.engine.world), mousePosition)
 
             if (this.currentBall) {
@@ -204,17 +217,15 @@ class Game {
         Events.on(mouseConstraint, 'mousemove', (event) => {
             if (
                 this.currentBall &&
-                event.mouse.position.x > 10 + this.currentBall.circleRadius &&
-                event.mouse.position.x < render.options.width - this.currentBall.circleRadius - 10
+                event.mouse.position.x > this.gameWidth / 2 + 10 + this.currentBall.circleRadius &&
+                event.mouse.position.x < this.gameWidth * 1.5 - this.currentBall.circleRadius - 10
             ) {
                 this.currentBall.position.x = event.mouse.position.x
             }
+            this.lastX = event.mouse.position.x
         })
 
         this.dropBall()
-        Events.on(mouseConstraint, 'mouseup', (event) => {
-            this.dropBall()
-        })
 
         Events.on(this.engine, 'collisionStart', (e) => {
             for (let i = 0; i < e.pairs.length; i++) {
@@ -224,6 +235,17 @@ class Game {
                 if (bodyA.label != 'ball' || bodyB.label != 'ball') continue
 
                 if (bodyA.circleRadius == bodyB.circleRadius) {
+                    var constraint = Matter.Constraint.create({
+                        bodyA: bodyA,
+                        pointA: { x: 0, y: 0 }, // Offset from objectA's position
+                        bodyB: bodyB,
+                        pointB: { x: 0, y: 0 }, // Offset from objectB's position
+                        length: 0, // Set the length to 0 to make them stick together
+                        render: { visible: false },
+                    })
+                    World.add(this.engine.world, constraint)
+
+                    bodyA.constraint = constraint
                     if (!(bodyA.id in this.toAnimate))
                         this.toAnimate[bodyA.id] = {
                             body: bodyA,
@@ -239,8 +261,6 @@ class Game {
                             towards: bodyA,
                             radius: bodyB.circleRadius,
                         }
-
-                    console.log(this.toAnimate)
                 }
             }
         })
@@ -286,12 +306,15 @@ class Game {
                     this.addScore(animate.radius)
                     this.spawnBall(midpointX, midpointY, this.getNextSize(animate.radius))
 
+                    const constraint = ball.constraint || towards.constraint
+
+                    World.remove(this.engine.world, constraint)
                     World.remove(this.engine.world, ball)
                     World.remove(this.engine.world, towards)
                     delete this.toAnimate[key]
                     delete this.toAnimate[towards.id]
                 } else if (animate.smaller && ball.circleRadius >= radiusLimit) {
-                    const scale = 0.95 + scaleRate * timeScale * -1
+                    const scale = 0.94 + scaleRate * timeScale * -1
                     Body.scale(ball, scale, scale)
                     ball.render.sprite.xScale = ball.render.sprite.xScale * scale
                     ball.render.sprite.yScale = ball.render.sprite.yScale * scale
@@ -345,12 +368,12 @@ class Game {
 
         // boundary walls
         World.add(this.engine.world, [
-            this.wall(0, 0, globals.width * 2, 20), // top
-            this.wall(0, globals.height, globals.width * 2, 20), // bottom
-            this.wall(0, 400, 20, globals.height), // left
-            this.wall(globals.width, 400, 20, globals.height), // right
+            this.wall(this.gameWidth, 0, this.gameWidth, 20), // top
+            this.wall(this.gameWidth, globals.height, this.gameWidth, 20), // bottom
+            this.wall(this.gameWidth / 2, globals.height / 2, 20, globals.height), // left
+            this.wall(this.gameWidth * 1.5, 400, 20, globals.height), // right
 
-            Bodies.rectangle(0, 150, globals.width * 2, 5, {
+            Bodies.rectangle(this.gameWidth, 150, this.gameWidth - 20, 5, {
                 isStatic: true,
                 isSensor: true,
                 label: 'death',
