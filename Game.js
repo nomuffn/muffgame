@@ -137,7 +137,7 @@ class Game {
             this.currentBall = null
         }
         if (!this.currentBall) {
-            // delay a call by 1 second
+            // delay next spawn
             setTimeout(() => {
                 const randomIndex = Math.floor((Math.random() * this.sizes.length) / 3)
 
@@ -148,7 +148,7 @@ class Game {
                 if (lastX > this.rightLimit - size) lastX = this.rightLimit - size
 
                 this.currentBall = this.spawnBall(lastX || this.width / 2, 50, size, true)
-            }, 1000)
+            }, 250)
         }
     }
 
