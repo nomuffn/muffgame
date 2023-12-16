@@ -40,14 +40,14 @@ class Game {
     lastX = this.width / 2
 
     sizes = [
-        { size: 25, score: 1 },
-        { size: 35, score: 2 },
-        { size: 50, score: 4 },
-        { size: 60, score: 8 },
-        { size: 80, score: 16 },
-        { size: 100, score: 32 },
-        { size: 125, score: 64 },
-        { size: 150, score: 128 },
+        { size: 25, score: 10 },
+        { size: 35, score: 20 },
+        { size: 50, score: 40 },
+        { size: 60, score: 80 },
+        { size: 80, score: 160 },
+        { size: 100, score: 320 },
+        { size: 125, score: 640 },
+        { size: 150, score: 1280 },
     ]
 
     getNextSize(size) {
@@ -74,7 +74,7 @@ class Game {
         return Math.random() * (max - min) + min
     }
 
-    spawnBall(size = this.sizes[0].size, isStatic = false, xPos = this.lastX, yPos = 50) {
+    spawnBall(size = this.sizes[0].size, isStatic = false, xPos = this.lastX, yPos = 75) {
         const sizeIndex = this.sizes.findIndex((item) => item.size == size)
         size = this.sizes[sizeIndex].size
 
@@ -147,15 +147,10 @@ class Game {
         }
     }
 
-    addScore() {
-        const balls = Composite.allBodies(this.engine.world).filter((item) => item.label == 'ball')
+    addScore(ballSize) {
+        const score = this.sizes.find((item) => item.size == ballSize).score
 
-        let score = 0
-        for (const ball of balls) {
-            score += this.sizes.find((item) => item.size == ball.size).score
-        }
-
-        this.score = score
+        this.score += score
         scoreText.innerText = this.score
     }
     endGame() {
@@ -167,6 +162,11 @@ class Game {
             World.remove(this.engine.world, ball)
             this.toAnimate = {}
         }
+        World.remove(this.engine.world, this.currentBall)
+        this.currentBall = null
+        setTimeout(() => {
+            this.dropBall()
+        }, 4000)
     }
 
     getValidXPos(xPos) {
