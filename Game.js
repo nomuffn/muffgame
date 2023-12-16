@@ -37,6 +37,7 @@ class Game {
     height = globals.height
     leftLimit = 10 // half of wall width
     rightLimit = this.width - 10
+    lastX = this.width / 2
 
     sizes = [
         { size: 25, score: 1 },
@@ -73,12 +74,14 @@ class Game {
         return Math.random() * (max - min) + min
     }
 
-    spawnBall(x, y, size = this.sizes[0].size, isStatic = false) {
+    spawnBall(size = this.sizes[0].size, isStatic = false, xPos = this.lastX, yPos = 50) {
         const sizeIndex = this.sizes.findIndex((item) => item.size == size)
         size = this.sizes[sizeIndex].size
 
+        xPos = this.getValidXPos(xPos)
+
         const inertia = 1
-        const ball = Bodies.circle(x, y, size, {
+        const ball = Bodies.circle(xPos, yPos, size, {
             restitution: 0.5,
             label: 'ball',
             size,
@@ -129,11 +132,7 @@ class Game {
 
         if (this.currentBall) {
             World.remove(this.engine.world, this.currentBall)
-            const ball = this.spawnBall(
-                this.currentBall.position.x,
-                50,
-                this.currentBall.circleRadius,
-            )
+            const ball = this.spawnBall(this.currentBall.circleRadius)
             this.currentBall = null
         }
         if (!this.currentBall) {
@@ -141,13 +140,9 @@ class Game {
             setTimeout(() => {
                 const randomIndex = Math.floor((Math.random() * this.sizes.length) / 3)
 
-                let lastX = this.lastX || this.width
                 const size = this.sizes[randomIndex].size
 
-                if (lastX < this.leftLimit + size) lastX = this.leftLimit + size
-                if (lastX > this.rightLimit - size) lastX = this.rightLimit - size
-
-                this.currentBall = this.spawnBall(lastX || this.width / 2, 50, size, true)
+                this.currentBall = this.spawnBall(size, true)
             }, 250)
         }
     }
@@ -174,6 +169,20 @@ class Game {
         }
     }
 
+    getValidXPos(xPos) {
+        // account for barries and ball size
+        const circleRadius = this.currentBall?.circleRadius || 0
+        xPos = Math.max(xPos, this.leftLimit + circleRadius)
+        xPos = Math.min(xPos, this.rightLimit - circleRadius)
+        return xPos
+        if (
+            xPos > this.leftLimit + this.currentBall.circleRadius &&
+            xPos < this.rightLimit - this.currentBall.circleRadius
+        ) {
+            return xPos
+        }
+    }
+
     constructor() {
         // engine
         this.engine = Engine.create()
@@ -196,8 +205,7 @@ class Game {
         let runner = Runner.create()
         Runner.run(runner, this.engine)
 
-        console.log(this.engine.gravity)
-        this.engine.gravity.scale = 0.0015
+        // this.engine.gravity.scale = 0.0015
 
         // mouse constraint
         let mouseConstraint = MouseConstraint.create(this.engine, {
@@ -209,8 +217,10 @@ class Game {
         World.add(this.engine.world, mouseConstraint)
 
         Events.on(mouseConstraint, 'mouseup', (event) => {
-            const mousePosition = event.mouse.mousedownPosition
+            const mousePosition = event.mouse.mouseupPosition
             const bodiesAtMouse = Query.point(Composite.allBodies(this.engine.world), mousePosition)
+
+            this.lastX = this.getValidXPos(mousePosition.x)
 
             if (this.currentBall) {
                 this.dropBall()
@@ -220,14 +230,11 @@ class Game {
             }
         })
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            if (
-                this.currentBall &&
-                event.mouse.position.x > this.leftLimit + this.currentBall.circleRadius &&
-                event.mouse.position.x < this.rightLimit - this.currentBall.circleRadius
-            ) {
-                this.currentBall.position.x = event.mouse.position.x
+            const xPos = this.getValidXPos(event.mouse.position.x)
+            if (this.currentBall) {
+                this.currentBall.position.x = xPos
             }
-            this.lastX = event.mouse.position.x
+            this.lastX = xPos
         })
 
         this.dropBall()
@@ -305,7 +312,7 @@ class Game {
                     const midpointY = (ball.position.y + towards.position.y) / 2
 
                     this.addScore(animate.radius)
-                    this.spawnBall(midpointX, midpointY, this.getNextSize(animate.radius))
+                    this.spawnBall(this.getNextSize(animate.radius), false, midpointX, midpointY)
 
                     const constraint = ball.constraint || towards.constraint
 
