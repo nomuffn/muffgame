@@ -191,6 +191,7 @@ class Game {
         let render = Render.create({
             element: document.body,
             engine: this.engine,
+            isFixed: true,
             options: {
                 width: globals.width,
                 height: globals.height,
